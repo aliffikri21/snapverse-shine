@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SNAPVERSE — 3D Y2K Web Photobooth // TRM Exhibition</title>
+  <!-- Three.js untuk Latar 3D Interaktif -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Google Fonts: Syne & Space Grotesk untuk nuansa Y2K Neo-Brutalism -->
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --y2k-pink: #FF2A85;
+      --y2k-cyan: #00F0FF;
+      --y2k-lime: #CCFF00;
+      --y2k-purple: #7B2CBF;
+      --y2k-yellow: #FFE600;
+      --dark: #121216;
+      --light: #FFFDF7;
+      --border-thick: 3.5px solid #121216;
+      --shadow-brutal: 6px 6px 0px #121216;
+      --shadow-brutal-sm: 4px 4px 0px #121216;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Space Grotesk', sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: #181028;
+      color: var(--dark);
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Kanvas 3D di Latar Belakang */
+    #bg-3d-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Efek Flash Kamera Putih */
+    #camera-flash {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease-out;
+    }
+
+    /* Kontainer Utama UI */
+    .app-wrapper {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18px 28px;
+    }
+
+    /* Header Y2K */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--y2k-lime);
+      border: var(--border-thick);
+      box-shadow: var(--shadow-brutal);
+      border-radius: 18px;
+      padding: 10px 24px;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--dark);
+      letter-spacing: -0.5px;
+      text-transform: uppercase;
+    }
+
+    .badge-tag {
+      background: var(--y2k-pink);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 5px 12px;
+      border-radius: 99px;
+      border: 2.5px solid var(--dark);
+      box-shadow: 2px 2px 0 var(--dark);
+    }
+
+    /* Area Kerja Utama (Kiri: Kamera & Kontrol, Kanan: Strip & Studio Stiker) */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 24px;
+      flex: 1;
+      margin: 16px 0;
+      min-height: 0;
+    }
+
+    .brutal-panel {
+      background: var(--light);
+      border: var(--border-thick);
+      box-shadow: var(--shadow-brutal);
+      border-radius: 24px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    /* Panel Kiri: Layar Kamera */
+    .camera-stage {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      background: #0d0d11;
+      border: var(--border-thick);
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    /* Video Webcam & Kanvas Preview AR */
+    #webcam-video {
+      display: none;
+    }
+
+    #live-view-canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Angka Hitung Mundur Besar di Tengah Kamera */
+    #countdown-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 7rem;
+      font-weight: 800;
+      color: var(--y2k-yellow);
+      text-shadow: 6px 6px 0 var(--dark), -3px -3px 0 var(--y2k-pink);
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    #countdown-overlay.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .camera-status-pill {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(18, 18, 22, 0.85);
+      color: var(--y2k-cyan);
+      border: 2px solid var(--y2k-cyan);
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    /* Baris Kontrol Kamera & Filter */
+    .controls-section {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .row-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: var(--dark);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .y2k-btn {
+      background: #fff;
+      color: var(--dark);
+      border: 2.5px solid var(--dark);
+      box-shadow: var(--shadow-brutal-sm);
+      padding: 7px 13px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+    }
+
+    .y2k-btn:hover {
+      background: var(--y2k-yellow);
+    }
+
+    .y2k-btn:active, .y2k-btn.active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 var(--dark);
+      background: var(--y2k-cyan);
+    }
+
+    .shutter-btn {
+      background: var(--y2k-pink);
+      color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      padding: 13px 24px;
+      border-radius: 16px;
+      border: var(--border-thick);
+      box-shadow: var(--shadow-brutal);
+      cursor: pointer;
+      width: 100%;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .shutter-btn:hover {
+      background: #ff0f74;
+    }
+
+    .shutter-btn:active {
+      transform: translate(4px, 4px);
+      box-shadow: 2px 2px 0 var(--dark);
+    }
+
+    .shutter-btn:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    /* Panel Kanan: Studio Photostrip & Dekorasi Stiker */
+    .studio-layout {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 18px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .strip-preview-box {
+      background: #e9e5d8;
+      border: var(--border-thick);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+
+    /* Kanvas Strip Foto 4-Cut yang Bisa Di-Drag Stikernya */
+    #strip-canvas {
+      height: 100%;
+      max-height: 72vh;
+      width: auto;
+      border: 2px solid var(--dark);
+      border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      cursor: grab;
+      background: #fff;
+    }
+
+    #strip-canvas:active {
+      cursor: grabbing;
+    }
+
+    .sticker-tools {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .tool-box {
+      background: #F4F1EA;
+      border: 2.5px solid var(--dark);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .tool-box h4 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sticker-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .sticker-item {
+      font-size: 1.4rem;
+      padding: 6px;
+      background: #fff;
+      border: 2px solid var(--dark);
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: transform 0.1s, background 0.15s;
+    }
+
+    .sticker-item:hover {
+      background: var(--y2k-lime);
+      transform: scale(1.08);
+    }
+
+    .color-swatches {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .swatch {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 2.5px solid var(--dark);
+      cursor: pointer;
+      box-shadow: 2px 2px 0 var(--dark);
+    }
+
+    .swatch.active {
+      transform: scale(1.15);
+      outline: 3px solid var(--y2k-pink);
+    }
+
+    .caption-input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 2.5px solid var(--dark);
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      background: #fff;
+    }
+
+    .download-btn {
+      background: var(--y2k-lime);
+      color: var(--dark);
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      padding: 12px;
+      border: var(--border-thick);
+      border-radius: 14px;
+      box-shadow: var(--shadow-brutal-sm);
+      cursor: pointer;
+      text-transform: uppercase;
+      width: 100%;
+    }
+
+    .download-btn:hover {
+      background: #b8e600;
+    }
+
+    .helper-note {
+      font-size: 0.75rem;
+      color: #555;
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+
+    @media (max-width: 1024px) {
+      body { overflow-y: auto; height: auto; }
+      .workspace { grid-template-columns: 1fr; }
+      #strip-canvas { max-height: 500px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Efek Flash Putih Saat Jepret -->
+  <div id="camera-flash"></div>
+
+  <!-- Kanvas Latar Belakang 3D (Three.js) -->
+  <canvas id="bg-3d-canvas"></canvas>
+
+  <div class="app-wrapper">
+    <!-- HEADER -->
+    <header class="top-bar">
+      <div class="logo-area">
+        <span style="font-size: 1.8rem;">💿</span>
+        <div class="logo-title">SNAPVERSE 2000</div>
+        <span class="badge-tag">3D Y2K PHOTOBOOTH STUDIO</span>
+      </div>
+      <div style="font-weight: 700; font-size: 0.88rem;">
+        ✨ PAMERAN TEKNOLOGI REKAYASA MULTIMEDIA ✨
+      </div>
+    </header>
+
+    <!-- WORKSPACE UTAMA -->
+    <main class="workspace">
+      
+      <!-- PANEL KIRI: KAMERA LIVE, FILTER, & AKSESORI AR -->
+      <section class="brutal-panel">
+        <div class="camera-stage">
+          <video id="webcam-video" autoplay playsinline muted></video>
+          <canvas id="live-view-canvas" width="640" height="480"></canvas>
+          <div class="camera-status-pill" id="shot-progress">📸 SIAP MEMOTRET (0 / 4 FOTO)</div>
+          <div id="countdown-overlay">3</div>
+        </div>
+
+        <div class="controls-section">
+          <!-- Pilihan Filter Warna Y2K -->
+          <div class="control-row">
+            <span class="row-label">🎨 Filter Kamera:</span>
+            <button class="y2k-btn filter-btn active" data-filter="normal">Normal</button>
+            <button class="y2k-btn filter-btn" data-filter="cyber">Cyber Y2K</button>
+            <button class="y2k-btn filter-btn" data-filter="retro">90s Camcorder</button>
+            <button class="y2k-btn filter-btn" data-filter="pink">Dreamy Pink</button>
+            <button class="y2k-btn filter-btn" data-filter="manga">B&W Pop</button>
+          </div>
+
+          <!-- Pilihan Aksesori Kepala Virtual (Live Prop) -->
+          <div class="control-row">
+            <span class="row-label">👑 Aksesori Live:</span>
+            <button class="y2k-btn prop-btn active" data-prop="none">Tanpa Prop</button>
+            <button class="y2k-btn prop-btn" data-prop="glasses">🕶️ Pixel Glasses</button>
+            <button class="y2k-btn prop-btn" data-prop="crown">👑 Cyber Crown</button>
+            <button class="y2k-btn prop-btn" data-prop="neko">🐱 Neko Ears</button>
+            <button class="y2k-btn prop-btn" data-prop="angel">🪽 Angel Halo</button>
+          </div>
+
+          <!-- Tombol Aksi Utama: Mulai Sesi 4 Foto -->
+          <div style="display: flex; gap: 10px; margin-top: 4px;">
+            <button class="shutter-btn" id="btn-start-session">
+              ⚡ MULAI SESI 4 FOTO OTOMATIS (3 DETIK/FOTO)
+            </button>
+            <button class="y2k-btn" id="btn-single-snap" title="Ambil 1 foto manual">
+              📸 Jepret Manual
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL KANAN: HASIL PHOTOSTRIP 4-CUT & STUDIO STIKER -->
+      <section class="brutal-panel">
+        <div class="studio-layout">
+          
+          <!-- Preview Strip 4 Foto -->
+          <div class="strip-preview-box">
+            <canvas id="strip-canvas" width="420" height="1120"></canvas>
+          </div>
+
+          <!-- Alat Kustomisasi Strip & Stiker -->
+          <div class="sticker-tools">
+            
+            <div class="tool-box">
+              <h4>🖼️ 1. Pilih Tema Frame Photobox</h4>
+              <div class="color-swatches" id="frame-swatches">
+                <div class="swatch active" data-theme="pink" style="background: #FF2A85;" title="Hot Pink Y2K"></div>
+                <div class="swatch" data-theme="cyan" style="background: #00F0FF;" title="Cyber Cyan"></div>
+                <div class="swatch" data-theme="lime" style="background: #CCFF00;" title="Acid Lime"></div>
+                <div class="swatch" data-theme="dark" style="background: #18181F;" title="Midnight Grid"></div>
+                <div class="swatch" data-theme="holo" style="background: linear-gradient(135deg, #ff9a9e, #fad0c4, #a1c4fd);" title="Hologram"></div>
+              </div>
+            </div>
+
+            <div class="tool-box">
+              <h4>✨ 2. Klik Stiker & Geser di Foto!</h4>
+              <div class="sticker-grid">
+                <div class="sticker-item" data-sticker="💖">💖</div>
+                <div class="sticker-item" data-sticker="✨">✨</div>
+                <div class="sticker-item" data-sticker="👽">👽</div>
+                <div class="sticker-item" data-sticker="🔥">🔥</div>
+                <div class="sticker-item" data-sticker="🦋">🦋</div>
+                <div class="sticker-item" data-sticker="💿">💿</div>
+                <div class="sticker-item" data-sticker="🍒">🍒</div>
+                <div class="sticker-item" data-sticker="⚡">⚡</div>
+                <div class="sticker-item" data-sticker="🎀">🎀</div>
+                <div class="sticker-item" data-sticker="👾">👾</div>
+                <div class="sticker-item" data-sticker="🌈">🌈</div>
+                <div class="sticker-item" data-sticker="⭐">⭐</div>
+              </div>
+              <p class="helper-note">💡 Tip: Setelah stiker muncul di strip foto, kamu bisa <strong>klik & tahan (drag)</strong> stiker tersebut untuk menggeser posisinya!</p>
+              <button class="y2k-btn" id="btn-clear-stickers" style="margin-top:8px; width:100%;">🗑️ Hapus Semua Stiker</button>
+            </div>
+
+            <div class="tool-box">
+              <h4>✍️ 3. Pesan / Nama Geng SMA</h4>
+              <input type="text" id="custom-caption" class="caption-input" value="BESTIE TRM EXPO '26 ✨" maxlength="26">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="download-btn" id="btn-download">
+                💾 UNDUH PHOTOSTRIP (PNG HD)
+              </button>
+              <button class="y2k-btn" id="btn-reset-photos" style="width:100%; text-align:center;">
+                🔄 Ulangi Foto dari Awal
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. EFEK SUARA SINTETIS WEB AUDIO API (BEEP COUNTDOWN & SHUTTER KAMERA)
+    // =========================================================================
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    let soundCtx;
+
+    function playSound(type) {
+      if (!soundCtx) soundCtx = new AudioContextClass();
+      if (soundCtx.state === 'suspended') soundCtx.resume();
+
+      const now = soundCtx.currentTime;
+
+      if (type === 'beep') {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (type === 'shutter') {
+        // Suara jepretan kamera mekanis menggunakan White Noise + High Tone
+        const bufferSize = soundCtx.sampleRate * 0.12;
+        const buffer = soundCtx.createBuffer(1, bufferSize, soundCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (soundCtx.sampleRate * 0.03));
+        }
+        const noise = soundCtx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = soundCtx.createGain();
+        gain.gain.setValueAtTime(0.5, now);
+        noise.connect(gain);
+        gain.connect(soundCtx.destination);
+        noise.start(now);
+      } else if (type === 'pop') {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.09);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      }
+    }
+
+    // =========================================================================
+    // 2. LATAR BELAKANG 3D RETRO Y2K (THREE.JS)
+    // =========================================================================
+    const bgCanvas = document.getElementById('bg-3d-canvas');
+    const scene = new THREE.Scene();
+    const camera3D = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera3D.position.z = 14;
+
+    const renderer = new THREE.WebGLRenderer({ canvas: bgCanvas, alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const shapes3D = [];
+    const geometries = [
+      new THREE.TorusKnotGeometry(1.8, 0.45, 64, 12),
+      new THREE.IcosahedronGeometry(2.1, 0),
+      new THREE.OctahedronGeometry(2.0, 0),
+      new THREE.TorusGeometry(1.8, 0.5, 16, 40)
+    ];
+    const colors3D = [0xFF2A85, 0x00F0FF, 0xCCFF00, 0xFFE600];
+
+    for (let i = 0; i < 8; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colors3D[i % colors3D.length],
+        wireframe: true,
+        transparent: true,
+        opacity: 0.28
+      });
+      const mesh = new THREE.Mesh(geometries[i % geometries.length], mat);
+      mesh.position.set(
+        (Math.random() - 0.5) * 26,
+        (Math.random() - 0.5) * 16,
+        (Math.random() - 0.5) * 8 - 4
+      );
+      scene.add(mesh);
+      shapes3D.push({
+        mesh,
+        rx: (Math.random() - 0.5) * 0.02,
+        ry: (Math.random() - 0.5) * 0.02
+      });
+    }
+
+    function animate3DBackground() {
+      requestAnimationFrame(animate3DBackground);
+      shapes3D.forEach(item => {
+        item.mesh.rotation.x += item.rx;
+        item.mesh.rotation.y += item.ry;
+      });
+      renderer.render(scene, camera3D);
+    }
+    animate3DBackground();
+
+    window.addEventListener('resize', () => {
+      camera3D.aspect = window.innerWidth / window.innerHeight;
+      camera3D.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // =========================================================================
+    // 3. WEBCAM LIVE, FILTER WARNA, & AKSESORI AR KEPALA
+    // =========================================================================
+    const video = document.getElementById('webcam-video');
+    const liveCanvas = document.getElementById('live-view-canvas');
+    const liveCtx = liveCanvas.getContext('2d');
+
+    let cameraReady = false;
+    let currentFilter = 'normal';
+    let currentProp = 'none';
+    const capturedPhotos = []; // Menyimpan hingga 4 gambar kanvas hasil jepretan
+
+    // Akses Webcam Pengunjung
+    async function startWebcam() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: 'user' },
+          audio: false
+        });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          cameraReady = true;
+        };
+      } catch (err) {
+        console.warn('Webcam tidak terdeteksi, mengaktifkan simulator kamera Y2K.');
+        cameraReady = false;
+      }
+    }
+    startWebcam();
+
+    // Render Loop Kamera Live + Filter + Prop Aksesori
+    function renderLiveCamera() {
+      requestAnimationFrame(renderLiveCamera);
+      const w = liveCanvas.width;
+      const h = liveCanvas.height;
+      const time = performance.now() * 0.003;
+
+      liveCtx.save();
+
+      // Terapkan Filter CSS Canvas
+      if (currentFilter === 'cyber') {
+        liveCtx.filter = 'contrast(135%) saturate(165%) hue-rotate(-15deg)';
+      } else if (currentFilter === 'retro') {
+        liveCtx.filter = 'sepia(45%) contrast(115%) brightness(105%)';
+      } else if (currentFilter === 'pink') {
+        liveCtx.filter = 'saturate(140%) contrast(110%) hue-rotate(320deg)';
+      } else if (currentFilter === 'manga') {
+        liveCtx.filter = 'grayscale(100%) contrast(175%) brightness(110%)';
+      } else {
+        liveCtx.filter = 'none';
+      }
+
+      if (cameraReady && video.readyState >= 2) {
+        // Mirror horizontal agar natural seperti cermin
+        liveCtx.translate(w, 0);
+        liveCtx.scale(-1, 1);
+        liveCtx.drawImage(video, 0, 0, w, h);
+        liveCtx.setTransform(1, 0, 0, 1, 0, 0);
+      } else {
+        // Fallback Avatar Lucu jika diuji di PC tanpa Webcam
+        const grad = liveCtx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#FF2A85');
+        grad.addColorStop(0.5, '#7B2CBF');
+        grad.addColorStop(1, '#00F0FF');
+        liveCtx.fillStyle = grad;
+        liveCtx.fillRect(0, 0, w, h);
+
+        liveCtx.fillStyle = '#FFE600';
+        liveCtx.beginPath();
+        liveCtx.arc(w / 2, h / 2 + Math.sin(time * 2) * 10, 95, 0, Math.PI * 2);
+        liveCtx.fill();
+        liveCtx.lineWidth = 6;
+        liveCtx.strokeStyle = '#121216';
+        liveCtx.stroke();
+
+        liveCtx.fillStyle = '#121216';
+        liveCtx.font = 'bold 22px sans-serif';
+        liveCtx.textAlign = 'center';
+        liveCtx.fillText('😊 MODE SIMULASI KAMERA', w / 2, h - 35);
+      }
+
+      liveCtx.filter = 'none';
+
+      // Overlay Garis Scanline ala Camcorder Y2K untuk Filter Retro/Cyber
+      if (currentFilter === 'retro' || currentFilter === 'cyber') {
+        liveCtx.fillStyle = 'rgba(0, 240, 255, 0.08)';
+        for (let y = 0; y < h; y += 6) {
+          liveCtx.fillRect(0, y, w, 2);
+        }
+      }
+
+      // Gambar Aksesori Kepala Virtual (AR Overlay)
+      drawVirtualProp(liveCtx, w, h, time);
+
+      // Bingkai Viewfinder Y2K di Layar Kamera
+      liveCtx.strokeStyle = '#CCFF00';
+      liveCtx.lineWidth = 3;
+      liveCtx.strokeRect(20, 20, 40, 4);
+      liveCtx.strokeRect(20, 20, 4, 40);
+      liveCtx.strokeRect(w - 60, 20, 40, 4);
+      liveCtx.strokeRect(w - 24, 20, 4, 40);
+
+      liveCtx.restore();
+    }
+    renderLiveCamera();
+
+    function drawVirtualProp(ctx, w, h, time) {
+      if (currentProp === 'none') return;
+      const bounce = Math.sin(time * 3) * 8;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (currentProp === 'glasses') {
+        ctx.font = '115px sans-serif';
+        ctx.fillText('🕶️', w / 2, h * 0.44 + bounce * 0.5);
+      } else if (currentProp === 'crown') {
+        ctx.font = '110px sans-serif';
+        ctx.fillText('👑', w / 2, h * 0.23 + bounce);
+      } else if (currentProp === 'neko') {
+        ctx.font = '85px sans-serif';
+        ctx.fillText('🎀', w / 2 - 85, h * 0.25 + bounce);
+        ctx.fillText('🐱', w / 2, h * 0.23 + bounce);
+      } else if (currentProp === 'angel') {
+        ctx.strokeStyle = '#FFE600';
+        ctx.lineWidth = 10;
+        ctx.shadowColor = '#00F0FF';
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.ellipse(w / 2, h * 0.2 + bounce, 95, 24, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Event Tombol Filter & Prop
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        playSound('pop');
+      });
+    });
+
+    document.querySelectorAll('.prop-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.prop-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentProp = btn.dataset.prop;
+        playSound('pop');
+      });
+    });
+
+    // =========================================================================
+    // 4. LOGIKA PEMOTRETAN OTOMATIS 4 FOTO & KOMPOSISI STRIP PHOTOBOX
+    // =========================================================================
+    const stripCanvas = document.getElementById('strip-canvas');
+    const stripCtx = stripCanvas.getContext('2d');
+    const countdownEl = document.getElementById('countdown-overlay');
+    const flashEl = document.getElementById('camera-flash');
+    const progressEl = document.getElementById('shot-progress');
+
+    let frameTheme = 'pink';
+    let stickersOnStrip = [
+      { emoji: '✨', x: 365, y: 120, size: 52 },
+      { emoji: '💖', x: 55, y: 520, size: 54 },
+      { emoji: '💿', x: 360, y: 860, size: 52 }
+    ];
+
+    // Fungsi Mengambil 1 Jepretan dari Kanvas Live
+    function captureSingleFrame() {
+      playSound('shutter');
+      // Animasi Flash Layar Putih
+      flashEl.style.opacity = '1';
+      setTimeout(() => { flashEl.style.opacity = '0'; }, 160);
+
+      const snapCanvas = document.createElement('canvas');
+      snapCanvas.width = liveCanvas.width;
+      snapCanvas.height = liveCanvas.height;
+      snapCanvas.getContext('2d').drawImage(liveCanvas, 0, 0);
+
+      if (capturedPhotos.length >= 4) {
+        capturedPhotos.shift(); // Ganti foto terlama jika sudah penuh 4
+      }
+      capturedPhotos.push(snapCanvas);
+      progressEl.innerText = `📸 TERKUMPUL (${capturedPhotos.length} / 4 FOTO)`;
+      renderPhotoStrip();
+    }
+
+    // Sesi Otomatis 4 Foto Berturut-turut
+    const btnStartSession = document.getElementById('btn-start-session');
+    btnStartSession.addEventListener('click', async () => {
+      btnStartSession.disabled = true;
+      capturedPhotos.length = 0;
+      renderPhotoStrip();
+
+      for (let shot = 1; shot <= 4; shot++) {
+        progressEl.innerText = `⏳ BERSIAP FOTO KE-${shot} DARI 4...`;
+        for (let count = 3; count >= 1; count--) {
+          countdownEl.innerText = count;
+          countdownEl.classList.add('show');
+          playSound('beep');
+          await new Promise(r => setTimeout(r, 750));
+          countdownEl.classList.remove('show');
+          await new Promise(r => setTimeout(r, 150));
+        }
+        countdownEl.innerText = 'CEKREK!';
+        countdownEl.classList.add('show');
+        captureSingleFrame();
+        await new Promise(r => setTimeout(r, 650));
+        countdownEl.classList.remove('show');
+      }
+
+      progressEl.innerText = '🎉 4 FOTO SELESAI! HIAS DENGAN STIKER DI KANAN 👉';
+      btnStartSession.disabled = false;
+    });
+
+    // Tombol Jepret Manual 1 per 1
+    document.getElementById('btn-single-snap').addEventListener('click', () => {
+      captureSingleFrame();
+    });
+
+    // =========================================================================
+    // 5. RENDER PHOTOSTRIP 4-CUT & DRAG-AND-DROP STIKER Y2K
+    // =========================================================================
+    function renderPhotoStrip() {
+      const W = stripCanvas.width;
+      const H = stripCanvas.height;
+      stripCtx.clearRect(0, 0, W, H);
+
+      // 1. Gambar Latar Belakang Bingkai (Frame Theme)
+      if (frameTheme === 'pink') {
+        stripCtx.fillStyle = '#FF2A85';
+      } else if (frameTheme === 'cyan') {
+        stripCtx.fillStyle = '#00F0FF';
+      } else if (frameTheme === 'lime') {
+        stripCtx.fillStyle = '#CCFF00';
+      } else if (frameTheme === 'dark') {
+        stripCtx.fillStyle = '#14141B';
+      } else if (frameTheme === 'holo') {
+        const grad = stripCtx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#FF9A9E');
+        grad.addColorStop(0.5, '#A1C4FD');
+        grad.addColorStop(1, '#CCF783');
+        stripCtx.fillStyle = grad;
+      }
+      stripCtx.fillRect(0, 0, W, H);
+
+      // Pola Grid Dekoratif Tipis di Frame
+      stripCtx.strokeStyle = frameTheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(18,18,22,0.1)';
+      stripCtx.lineWidth = 2;
+      for (let x = 0; x < W; x += 28) {
+        stripCtx.beginPath(); stripCtx.moveTo(x, 0); stripCtx.lineTo(x, H); stripCtx.stroke();
+      }
+      for (let y = 0; y < H; y += 28) {
+        stripCtx.beginPath(); stripCtx.moveTo(0, y); stripCtx.lineTo(W, y); stripCtx.stroke();
+      }
+
+      // 2. Header Atas pada Strip Foto
+      stripCtx.fillStyle = frameTheme === 'dark' ? '#CCFF00' : '#121216';
+      stripCtx.font = '800 22px Syne, sans-serif';
+      stripCtx.textAlign = 'center';
+      stripCtx.fillText('★ SNAPVERSE Y2K STUDIO ★', W / 2, 42);
+
+      // 3. Gambar 4 Slot Foto
+      const slotW = 356;
+      const slotH = 216;
+      const startX = (W - slotW) / 2;
+      const startY = 64;
+      const gap = 18;
+
+      for (let i = 0; i < 4; i++) {
+        const y = startY + i * (slotH + gap);
+
+        // Bayangan Brutal Hitam di Belakang Slot
+        stripCtx.fillStyle = '#121216';
+        stripCtx.fillRect(startX + 6, y + 6, slotW, slotH);
+
+        // Kotak Slot Foto
+        stripCtx.fillStyle = '#FFFDF7';
+        stripCtx.fillRect(startX, y, slotW, slotH);
+
+        if (capturedPhotos[i]) {
+          stripCtx.drawImage(capturedPhotos[i], startX, y, slotW, slotH);
+        } else {
+          // Placeholder Sebelum Foto Diambil
+          stripCtx.fillStyle = '#23232E';
+          stripCtx.fillRect(startX, y, slotW, slotH);
+          stripCtx.fillStyle = '#FFFDF7';
+          stripCtx.font = 'bold 20px Space Grotesk, sans-serif';
+          stripCtx.fillText(`SLOT FOTO #${i + 1}`, W / 2, y + slotH / 2 + 6);
+        }
+
+        // Garis Tepi Tebal Slot Foto
+        stripCtx.lineWidth = 4;
+        stripCtx.strokeStyle = '#121216';
+        stripCtx.strokeRect(startX, y, slotW, slotH);
+      }
+
+      // 4. Footer Branding Pameran Kampus & Pesan Pengunjung
+      const captionText = document.getElementById('custom-caption').value || 'TRM EXHIBITION 2026';
+      stripCtx.fillStyle = '#FFFDF7';
+      stripCtx.strokeStyle = '#121216';
+      stripCtx.lineWidth = 4;
+      stripCtx.fillRect(startX, H - 102, slotW, 72);
+      stripCtx.strokeRect(startX, H - 102, slotW, 72);
+
+      stripCtx.fillStyle = '#121216';
+      stripCtx.font = '800 21px Syne, sans-serif';
+      stripCtx.fillText(captionText.toUpperCase(), W / 2, H - 68);
+
+      const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      stripCtx.font = 'bold 13px Space Grotesk, sans-serif';
+      stripCtx.fillStyle = '#FF2A85';
+      stripCtx.fillText(`PRODI TEKNOLOGI REKAYASA MULTIMEDIA • ${today}`, W / 2, H - 44);
+
+      // 5. Gambar Semua Stiker Interaktif di Atas Strip
+      stripCtx.textAlign = 'center';
+      stripCtx.textBaseline = 'middle';
+      stickersOnStrip.forEach(st => {
+        stripCtx.font = `${st.size}px sans-serif`;
+        stripCtx.fillText(st.emoji, st.x, st.y);
+      });
+    }
+
+    // Interaksi Pilih Tema Bingkai
+    document.querySelectorAll('.swatch').forEach(sw => {
+      sw.addEventListener('click', () => {
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        sw.classList.add('active');
+        frameTheme = sw.dataset.theme;
+        playSound('pop');
+        renderPhotoStrip();
+      });
+    });
+
+    // Tambah Stiker Saat Diklik
+    document.querySelectorAll('.sticker-item').forEach(item => {
+      item.addEventListener('click', () => {
+        playSound('pop');
+        stickersOnStrip.push({
+          emoji: item.dataset.sticker,
+          x: 80 + Math.random() * 260,
+          y: 140 + Math.random() * 780,
+          size: 56
+        });
+        renderPhotoStrip();
+      });
+    });
+
+    // Drag & Drop Stiker Langsung di Kanvas Strip
+    let draggingSticker = null;
+
+    function getCanvasCoords(e) {
+      const rect = stripCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (stripCanvas.width / rect.width),
+        y: (clientY - rect.top) * (stripCanvas.height / rect.height)
+      };
+    }
+
+    stripCanvas.addEventListener('mousedown', (e) => {
+      const pos = getCanvasCoords(e);
+      for (let i = stickersOnStrip.length - 1; i >= 0; i--) {
+        const st = stickersOnStrip[i];
+        if (Math.hypot(pos.x - st.x, pos.y - st.y) < 38) {
+          draggingSticker = st;
+          break;
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!draggingSticker) return;
+      const pos = getCanvasCoords(e);
+      draggingSticker.x = pos.x;
+      draggingSticker.y = pos.y;
+      renderPhotoStrip();
+    });
+
+    window.addEventListener('mouseup', () => {
+      draggingSticker = null;
+    });
+
+    // Update teks secara langsung
+    document.getElementById('custom-caption').addEventListener('input', renderPhotoStrip);
+
+    // Hapus Stiker & Reset Foto
+    document.getElementById('btn-clear-stickers').addEventListener('click', () => {
+      stickersOnStrip = [];
+      playSound('pop');
+      renderPhotoStrip();
+    });
+
+    document.getElementById('btn-reset-photos').addEventListener('click', () => {
+      capturedPhotos.length = 0;
+      progressEl.innerText = '📸 SIAP MEMOTRET (0 / 4 FOTO)';
+      playSound('pop');
+      renderPhotoStrip();
+    });
+
+    // Unduh Hasil Photostrip ke Perangkat
+    document.getElementById('btn-download').addEventListener('click', () => {
+      playSound('shutter');
+      renderPhotoStrip();
+      const link = document.createElement('a');
+      link.download = `SNAPVERSE-TRM-${Date.now()}.png`;
+      link.href = stripCanvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Render strip awal saat halaman pertama kali dibuka
+    renderPhotoStrip();
+  </script>
+</body>
+</html>
